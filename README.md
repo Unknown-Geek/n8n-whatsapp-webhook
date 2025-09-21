@@ -33,8 +33,13 @@ A Node.js WhatsApp bot using `whatsapp-web.js` that provides a REST API for send
    ```bash
    git clone <repository-url>
    cd n8n-whatsapp-webhook
-   npm install
+   npm run setup
    ```
+   
+   This will:
+   - Install all system dependencies from `packages.txt`
+   - Download and install Chrome locally
+   - Install Node.js dependencies
 
 2. **Configure Environment**
    ```bash
@@ -245,8 +250,13 @@ Enable verbose logging by checking the console output. The application logs all 
 ### Local Development Setup
 
 ```bash
-# Install dependencies
-npm install
+# Full setup (recommended)
+npm run setup
+
+# Or individual steps:
+npm run install-packages  # Install system dependencies
+npm run install-chrome    # Download and install Chrome locally
+npm install               # Install Node.js dependencies
 
 # Start in development mode
 npm run dev
@@ -254,6 +264,29 @@ npm run dev
 # View logs
 tail -f logs/app.log  # If logging to file
 ```
+
+### Setup Troubleshooting
+
+**Permission Issues:**
+```bash
+# If you get permission errors during setup:
+sudo npm run install-packages
+./install-chrome.sh
+npm install
+```
+
+**Chrome Issues:**
+```bash
+# If Chrome fails to start, check if all dependencies are installed:
+npm run install-packages
+
+# Verify Chrome installation:
+ls -la ./chrome/
+./chrome/chrome --version
+```
+
+**System Dependencies:**
+All required packages are listed in `packages.txt` and installed automatically during setup.
 
 ### Testing Webhooks Locally
 

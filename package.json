@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "setup": "./install-chrome.sh && npm install",
+    "setup": "npm run install-packages && npm run install-chrome && npm install",
+    "install-packages": "sudo apt-get update && sudo apt-get install -y $(cat packages.txt)",
+    "install-chrome": "./install-chrome.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
