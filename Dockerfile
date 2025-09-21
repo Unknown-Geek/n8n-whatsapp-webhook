@@ -10,9 +10,25 @@ RUN apt-get update && apt-get install -y \
 # Install Chrome runtime dependencies from packages.txt
 COPY packages.txt ./
 RUN apt-get update && \
-    xargs apt-get install -y < packages.txt \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+    (cat packages.txt | xargs apt-get install -y --no-install-recommends || true) && \
+    apt-get install -y --no-install-recommends \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libcups2 \
+        libdrm2 \
+        libxkbcommon0 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxrandr2 \
+        libgbm1 \
+        libxss1 \
+        libasound2 \
+        libatspi2.0-0 \
+        libgtk-3-0 \
+        libnss3 \
+        fonts-liberation \
+        fonts-freefont-ttf \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /usr/src/app
