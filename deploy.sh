@@ -32,10 +32,10 @@ gcloud run deploy $SERVICE_NAME \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \
-  --memory 2Gi \
+  --memory 4Gi \
   --cpu 2 \
   --timeout 3600 \
-  --concurrency 10 \
+  --concurrency 5 \
   --max-instances 1 \
   --set-env-vars "NODE_ENV=production,PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true,GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable" \
   --project $PROJECT_ID

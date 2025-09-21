@@ -28,39 +28,56 @@ const log = (message, level = 'info') => {
 const initializeWhatsAppClient = () => {
     log('Initializing WhatsApp Web client...');
     
+    const puppeteerConfig = {
+        headless: true,
+        timeout: 180000, // 3 minutes timeout for Cloud Run
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI,VizDisplayCompositor',
+            '--disable-ipc-flooding-protection',
+            '--disable-software-rasterizer',
+            '--disable-web-security',
+            '--no-default-browser-check',
+            '--no-pings',
+            '--ignore-certificate-errors',
+            '--ignore-ssl-errors',
+            '--ignore-certificate-errors-spki-list',
+            '--ignore-ssl-errors-list',
+            '--memory-pressure-off',
+            '--max_old_space_size=4096',
+            '--disable-extensions',
+            '--disable-plugins',
+            '--disable-default-apps',
+            '--disable-background-networking',
+            '--disable-sync',
+            '--metrics-recording-only',
+            '--no-crash-upload',
+            '--disable-component-update',
+            '--disable-blink-features=AutomationControlled'
+        ],
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false,
+        executablePath: process.env.GOOGLE_CHROME_BIN || '/usr/bin/google-chrome-stable'
+    };
+
+    log(`Using Chrome executable: ${puppeteerConfig.executablePath}`);
+    
     client = new Client({
         authStrategy: new LocalAuth({
             dataPath: './session'
         }),
-        puppeteer: {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding',
-                '--disable-features=TranslateUI',
-                '--disable-ipc-flooding-protection',
-                '--disable-software-rasterizer',
-                '--disable-web-security',
-                '--no-default-browser-check',
-                '--no-pings',
-                '--ignore-certificate-errors',
-                '--ignore-ssl-errors',
-                '--ignore-certificate-errors-spki-list',
-                '--ignore-ssl-errors-list',
-                '--memory-pressure-off',
-                '--max_old_space_size=4096'
-            ],
-            executablePath: process.env.GOOGLE_CHROME_BIN || '/usr/bin/google-chrome-stable'
-        }
+        puppeteer: puppeteerConfig
     });
 
     // QR Code generation
