@@ -47,17 +47,17 @@ COPY . .
 # Install Chrome locally in the container (as root before user switch)
 RUN chmod +x ./install-chrome.sh && ./install-chrome.sh
 
-# Add non-root user for security
-RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
-    && mkdir -p /home/pptruser/Downloads /home/pptruser/.local/share \
-    && chown -R pptruser:pptruser /home/pptruser \
-    && chown -R pptruser:pptruser /usr/src/app
-
 # Create directory for session storage with proper ownership and permissions
-RUN mkdir -p whatsapp-session && chown -R pptruser:pptruser whatsapp-session && chmod -R 777 whatsapp-session
+RUN mkdir -p whatsapp-session && chmod -R 777 whatsapp-session
 
-# Switch to non-root user
-USER pptruser
+# For now, run as root to avoid permission issues
+# TODO: Fix non-root user setup later
+# RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
+#     && mkdir -p /home/pptruser/Downloads /home/pptruser/.local/share \
+#     && chown -R pptruser:pptruser /home/pptruser \
+#     && chown -R pptruser:pptruser /usr/src/app
+
+# USER pptruser
 
 # Set environment variables for Chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
