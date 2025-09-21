@@ -2,11 +2,48 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const QRCode = require('qrcode');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 // Configuration
 const PORT = process.env.PORT || 3000;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
+
+// Chrome path detection
+const getChromePath = () => {
+    // Local Chrome installation paths to try
+    const localChromePaths = [
+        path.join(__dirname, 'chrome', 'opt', 'google', 'chrome', 'chrome'),
+        path.join(__dirname, 'chrome', 'opt', 'google', 'chrome', 'google-chrome'),
+    ];
+    
+    // System Chrome paths to try
+    const systemChromePaths = [
+        process.env.GOOGLE_CHROME_BIN,
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium'
+    ].filter(Boolean);
+    
+    // Try local Chrome first
+    for (const chromePath of localChromePaths) {
+        if (fs.existsSync(chromePath)) {
+            return chromePath;
+        }
+    }
+    
+    // Try system Chrome
+    for (const chromePath of systemChromePaths) {
+        if (fs.existsSync(chromePath)) {
+            return chromePath;
+        }
+    }
+    
+    // Return null to use bundled Chromium
+    return null;
+};
 
 // Initialize Express app
 const app = express();
@@ -28,8 +65,10 @@ const log = (message, level = 'info') => {
 const initializeWhatsAppClient = () => {
     log('Initializing WhatsApp Web client...');
     
+    const chromePath = getChromePath();
+    
     const puppeteerConfig = {
-        headless: true,
+        headless: 'new', // Use new headless mode for Chrome 112+
         timeout: 180000, // 3 minutes timeout for Cloud Run
         args: [
             '--no-sandbox',
@@ -43,7 +82,7 @@ const initializeWhatsAppClient = () => {
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
-            '--disable-features=TranslateUI,VizDisplayCompositor',
+            '--disable-features=TranslateUI,VizDisplayCompositor,site-per-process,Translate,BackForwardCache,AutomationControlled',
             '--disable-ipc-flooding-protection',
             '--disable-software-rasterizer',
             '--disable-web-security',
@@ -63,15 +102,30 @@ const initializeWhatsAppClient = () => {
             '--metrics-recording-only',
             '--no-crash-upload',
             '--disable-component-update',
-            '--disable-blink-features=AutomationControlled'
+            '--disable-popup-blocking',
+            '--disable-translate',
+            '--disable-client-side-phishing-detection',
+            '--disable-hang-monitor',
+            '--disable-prompt-on-repost',
+            '--disable-infobars',
+            '--window-size=1280,800',
+            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
+            '--no-process-per-tab',
+            '--disable-process-per-site',
+            '--disable-site-isolation-trials',
+            '--user-data-dir=/tmp/chrome-profile-' + Date.now()
         ],
         handleSIGINT: false,
         handleSIGTERM: false,
-        handleSIGHUP: false,
-        executablePath: process.env.GOOGLE_CHROME_BIN || '/usr/bin/google-chrome-stable'
+        handleSIGHUP: false
     };
 
-    log(`Using Chrome executable: ${puppeteerConfig.executablePath}`);
+    if (chromePath) {
+        puppeteerConfig.executablePath = chromePath;
+        log(`Using Chrome executable: ${chromePath}`);
+    } else {
+        log('Using bundled Chromium (Chrome not found)');
+    }
     
     client = new Client({
         authStrategy: new LocalAuth({

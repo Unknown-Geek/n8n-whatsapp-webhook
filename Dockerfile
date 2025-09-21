@@ -1,44 +1,18 @@
 FROM node:18-slim
 
-# Install dependencies for Puppeteer and Chrome
+# Install basic dependencies
 RUN apt-get update && apt-get install -y \
     wget \
-    gnupg \
     ca-certificates \
-    procps \
-    libxss1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Chrome directly from Google's repository with specific version
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
-    && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install additional system packages needed for WhatsApp Web
-RUN apt-get update && apt-get install -y \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libatspi2.0-0 \
-    libgtk-3-0 \
-    libnss3 \
-    libxss1 \
-    libbz2-1.0 \
-    libgconf-2-4 \
-    fonts-liberation \
-    fonts-freefont-ttf \
-    --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+# Install Chrome runtime dependencies from packages.txt
+COPY packages.txt ./
+RUN apt-get update && \
+    xargs apt-get install -y < packages.txt \
+    --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -51,6 +25,9 @@ RUN npm ci --only=production
 
 # Copy app source
 COPY . .
+
+# Install Chrome locally in the container
+RUN chmod +x ./install-chrome.sh && ./install-chrome.sh
 
 # Create directory for session storage
 RUN mkdir -p session && chmod 777 session

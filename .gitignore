@@ -12,6 +12,10 @@ yarn-error.log*
 # WhatsApp session data
 session/
 
+# Chrome installation
+chrome/
+*.deb
+
 # Logs
 logs
 *.log
@@ -86,3 +90,5 @@ Desktop.ini
 
 # VS Code
 .vscode/
+
+.wwebjs_cache
