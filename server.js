@@ -389,7 +389,36 @@ app.post('/send', async (req, res) => {
         if (!isClientReady) {
             return res.status(503).json({
                 error: 'WhatsApp client is not ready',
+                status: authenticationStatus,
+                client_state: client ? 'exists' : 'null'
+            });
+        }
+
+        // Double-check client state
+        if (!client) {
+            return res.status(503).json({
+                error: 'WhatsApp client is null',
                 status: authenticationStatus
+            });
+        }
+
+        // Check if client is actually connected
+        try {
+            const state = await client.getState();
+            log(`Client state: ${state}`);
+            
+            if (state !== 'CONNECTED') {
+                return res.status(503).json({
+                    error: 'WhatsApp client is not connected',
+                    status: authenticationStatus,
+                    client_state: state
+                });
+            }
+        } catch (stateError) {
+            log(`Error getting client state: ${stateError.message}`, 'error');
+            return res.status(503).json({
+                error: 'Cannot verify client state',
+                details: stateError.message
             });
         }
 
@@ -401,13 +430,25 @@ app.post('/send', async (req, res) => {
 
         log(`Sending message to ${phoneNumber}: ${message}`);
         
-        await client.sendMessage(phoneNumber, message);
+        // Add timeout for message sending
+        const sendMessageWithTimeout = async () => {
+            return Promise.race([
+                client.sendMessage(phoneNumber, message),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Message send timeout after 30 seconds')), 30000)
+                )
+            ]);
+        };
         
-        log(`Message sent successfully to ${phoneNumber}`);
+        // Send the message and wait for completion
+        const result = await sendMessageWithTimeout();
+        
+        log(`Message sent successfully to ${phoneNumber}. Result ID: ${result.id || 'N/A'}`);
         res.json({
             success: true,
             message: 'Message sent successfully',
             to: phoneNumber,
+            result: { id: result.id, ack: result.ack },
             timestamp: new Date().toISOString()
         });
 
