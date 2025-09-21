@@ -42,19 +42,11 @@ RUN npm ci --only=production
 # Copy app source
 COPY . .
 
-# Install Chrome locally in the container
+# Install Chrome locally in the container (as root before user switch)
 RUN chmod +x ./install-chrome.sh && ./install-chrome.sh
 
 # Create directory for session storage
 RUN mkdir -p session && chmod 777 session
-
-# Set environment variables for Chrome
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable
-ENV CHROME_PATH=/usr/bin/google-chrome-stable
-
-# Expose port
-EXPOSE 3000
 
 # Add non-root user for security
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
@@ -64,6 +56,14 @@ RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
 
 # Switch to non-root user
 USER pptruser
+
+# Set environment variables for Chrome
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable
+ENV CHROME_PATH=/usr/bin/google-chrome-stable
+
+# Expose port
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
