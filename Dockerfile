@@ -1,11 +1,12 @@
 FROM node:18-slim
 
-# Install basic dependencies including binutils for ar command
+# Install basic dependencies including binutils for ar command and xz-utils for tar extraction
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
     curl \
     binutils \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Chrome runtime dependencies from packages.txt
