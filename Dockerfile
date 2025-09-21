@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     procps \
     libxss1 \
+    curl \
     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
@@ -16,9 +17,6 @@ RUN apt-get update && apt-get install -y \
 
 # Install additional system packages needed for WhatsApp Web
 # These packages are required for Puppeteer/Chrome to run properly in Docker
-# Alternative: Copy packages file and use xargs to install from file
-# COPY packages-docker.txt ./
-# RUN apt-get update && xargs -a packages-docker.txt apt-get install -y --no-install-recommends && rm -rf /var/lib/apt/lists/* && rm packages-docker.txt
 RUN apt-get update && apt-get install -y \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -32,6 +30,10 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatspi2.0-0 \
     libgtk-3-0 \
+    libnss3 \
+    libxss1 \
+    libbz2-1.0 \
+    libgconf-2-4 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -48,14 +50,19 @@ RUN npm ci --only=production
 COPY . .
 
 # Create directory for session storage
-RUN mkdir -p session
+RUN mkdir -p session && chmod 777 session
+
+# Set environment variables for Chrome
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable
+ENV CHROME_PATH=/usr/bin/google-chrome-stable
 
 # Expose port
 EXPOSE 3000
 
 # Add non-root user for security
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
-    && mkdir -p /home/pptruser/Downloads \
+    && mkdir -p /home/pptruser/Downloads /home/pptruser/.local/share \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /usr/src/app
 

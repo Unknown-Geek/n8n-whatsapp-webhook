@@ -8,7 +8,13 @@
     "dev": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["whatsapp", "n8n", "webhook", "bot", "automation"],
+  "keywords": [
+    "whatsapp",
+    "n8n",
+    "webhook",
+    "bot",
+    "automation"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -16,6 +22,6 @@
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "qrcode": "^1.5.4",
-    "whatsapp-web.js": "^1.34.1"
+    "whatsapp-web.js": "^1.23.0"
   }
 }

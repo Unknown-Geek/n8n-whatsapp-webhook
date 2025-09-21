@@ -42,8 +42,24 @@ const initializeWhatsAppClient = () => {
                 '--no-first-run',
                 '--no-zygote',
                 '--single-process',
-                '--disable-gpu'
-            ]
+                '--disable-gpu',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--disable-software-rasterizer',
+                '--disable-web-security',
+                '--no-default-browser-check',
+                '--no-pings',
+                '--ignore-certificate-errors',
+                '--ignore-ssl-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--ignore-ssl-errors-list',
+                '--memory-pressure-off',
+                '--max_old_space_size=4096'
+            ],
+            executablePath: process.env.GOOGLE_CHROME_BIN || '/usr/bin/google-chrome-stable'
         }
     });
 
@@ -88,7 +104,24 @@ const initializeWhatsAppClient = () => {
         authenticationStatus = 'disconnected';
     });
 
-    // Incoming messages
+    // Loading screen event
+    client.on('loading_screen', (percent, message) => {
+        log(`Loading... ${percent}% - ${message}`, 'info');
+    });
+
+    // Error handling
+    client.on('error', (error) => {
+        log(`WhatsApp client error: ${error.message}`, 'error');
+        console.error('Full error:', error);
+        authenticationStatus = 'error';
+    });
+
+    // Initialize client with error handling
+    client.initialize().catch(error => {
+        log(`Failed to initialize WhatsApp client: ${error.message}`, 'error');
+        console.error('Initialization error:', error);
+        authenticationStatus = 'init_failed';
+    });
     client.on('message', async (message) => {
         try {
             log(`Received message from ${message.from}: ${message.body}`);
@@ -120,9 +153,6 @@ const initializeWhatsAppClient = () => {
             log(`Error handling incoming message: ${error.message}`, 'error');
         }
     });
-
-    // Initialize client
-    client.initialize();
 };
 
 // Routes
@@ -222,23 +252,39 @@ app.get('/qr', (req, res) => {
             `);
         });
     } else {
+        // Show current status with more details
+        const statusMessage = {
+            'initializing': '🔄 Initializing WhatsApp client...',
+            'init_failed': '❌ Initialization failed - check logs',
+            'error': '❌ Client error occurred - check logs',
+            'loading': '⏳ Loading WhatsApp Web...'
+        }[authenticationStatus] || '🔄 Starting up...';
+
         res.send(`
             <html>
                 <head>
-                    <title>WhatsApp Bot - Initializing</title>
-                    <meta http-equiv="refresh" content="3">
+                    <title>WhatsApp Bot - ${authenticationStatus}</title>
+                    <meta http-equiv="refresh" content="5">
                     <style>
                         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
                         .container { max-width: 500px; margin: 0 auto; padding: 20px; }
-                        .status { color: blue; font-size: 18px; }
+                        .status { color: ${authenticationStatus.includes('failed') || authenticationStatus.includes('error') ? 'red' : 'blue'}; font-size: 18px; }
+                        .debug { background: #f5f5f5; padding: 10px; margin: 20px 0; border-radius: 5px; font-family: monospace; }
                     </style>
                 </head>
                 <body>
                     <div class="container">
                         <h1>WhatsApp Bot</h1>
-                        <div class="status">🔄 Initializing...</div>
+                        <div class="status">${statusMessage}</div>
                         <p>Please wait while the WhatsApp client starts up.</p>
-                        <p><small>Page will refresh automatically</small></p>
+                        <div class="debug">
+                            <strong>Debug Info:</strong><br>
+                            Status: ${authenticationStatus}<br>
+                            Client Ready: ${isClientReady}<br>
+                            Has QR: ${!!qrCodeString}<br>
+                            Timestamp: ${new Date().toISOString()}
+                        </div>
+                        <p><small>Page will refresh automatically every 5 seconds</small></p>
                     </div>
                 </body>
             </html>
