@@ -9,7 +9,7 @@ services:
       - PORT=3000
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
     volumes:
-      - ./session:/usr/src/app/session
+      - ./session:/usr/src/app/whatsapp-session
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]

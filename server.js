@@ -130,7 +130,7 @@ const initializeWhatsAppClient = () => {
         log('Creating WhatsApp client with Puppeteer config...');
         client = new Client({
             authStrategy: new LocalAuth({
-                dataPath: './session'
+                dataPath: './whatsapp-session'
             }),
             puppeteer: puppeteerConfig
         });

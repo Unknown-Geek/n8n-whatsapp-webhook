@@ -54,7 +54,7 @@ RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && chown -R pptruser:pptruser /usr/src/app
 
 # Create directory for session storage with proper ownership
-RUN mkdir -p session && chown -R pptruser:pptruser session && chmod 755 session
+RUN mkdir -p whatsapp-session && chown -R pptruser:pptruser whatsapp-session && chmod 755 whatsapp-session
 
 # Switch to non-root user
 USER pptruser
