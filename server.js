@@ -77,7 +77,6 @@ const initializeWhatsAppClient = () => {
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process',
             '--disable-gpu',
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
@@ -93,7 +92,7 @@ const initializeWhatsAppClient = () => {
             '--ignore-certificate-errors-spki-list',
             '--ignore-ssl-errors-list',
             '--memory-pressure-off',
-            '--max_old_space_size=4096',
+            '--max_old_space_size=2048',
             '--disable-extensions',
             '--disable-plugins',
             '--disable-default-apps',
@@ -127,18 +126,27 @@ const initializeWhatsAppClient = () => {
         log('Using bundled Chromium (Chrome not found)');
     }
     
-    client = new Client({
-        authStrategy: new LocalAuth({
-            dataPath: './session'
-        }),
-        puppeteer: puppeteerConfig
-    });
+    try {
+        log('Creating WhatsApp client with Puppeteer config...');
+        client = new Client({
+            authStrategy: new LocalAuth({
+                dataPath: './session'
+            }),
+            puppeteer: puppeteerConfig
+        });
 
-    // QR Code generation
-    client.on('qr', (qr) => {
-        log('QR Code received, generating QR code string...');
-        qrCodeString = qr;
-        authenticationStatus = 'qr_ready';
+        // Add initialization timeout
+        const initTimeout = setTimeout(() => {
+            log('ERROR: WhatsApp client initialization timed out after 60 seconds');
+            authenticationStatus = 'timeout';
+        }, 60000);
+
+        // QR Code generation
+        client.on('qr', (qr) => {
+            clearTimeout(initTimeout);
+            log('✅ QR Code received, generating QR code string...');
+            qrCodeString = qr;
+            authenticationStatus = 'qr_ready';
         QRCode.toString(qr, { type: 'terminal' }, (err, url) => {
             if (!err) {
                 console.log('\n=== WhatsApp QR Code ===');
@@ -193,6 +201,10 @@ const initializeWhatsAppClient = () => {
         console.error('Initialization error:', error);
         authenticationStatus = 'init_failed';
     });
+    } catch (error) {
+        log(`ERROR: Failed to create WhatsApp client: ${error.message}`, 'error');
+        authenticationStatus = 'error';
+    }
     client.on('message', async (message) => {
         try {
             log(`Received message from ${message.from}: ${message.body}`);
