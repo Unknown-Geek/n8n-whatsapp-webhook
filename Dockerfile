@@ -47,14 +47,14 @@ COPY . .
 # Install Chrome locally in the container (as root before user switch)
 RUN chmod +x ./install-chrome.sh && ./install-chrome.sh
 
-# Create directory for session storage
-RUN mkdir -p session && chmod 777 session
-
 # Add non-root user for security
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads /home/pptruser/.local/share \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /usr/src/app
+
+# Create directory for session storage with proper ownership
+RUN mkdir -p session && chown -R pptruser:pptruser session && chmod 755 session
 
 # Switch to non-root user
 USER pptruser
