@@ -1,6 +1,6 @@
 FROM node:18-slim
 
-# Install basic dependencies
+# Install basic dependencies including binutils for ar command
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
