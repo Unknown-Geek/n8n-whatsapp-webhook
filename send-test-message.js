@@ -5,12 +5,12 @@ const axios = require('axios');
 
 const sendMessage = async () => {
     const phoneNumber = '+919074691700';
-    const message = 'Hello! This is a test message from your WhatsApp bot. The QR code generation and Chrome setup is now working successfully! 🎉';
+    const message = 'WhatsApp Bot is now connected! 🚀';
 
     try {
         console.log(`Sending message to ${phoneNumber}...`);
         
-        const response = await axios.post('https://n8n-whatsapp-webhook-production.up.railway.app/send', {
+        const response = await axios.post('http://146.148.72.208:3000/send', {
             to: phoneNumber,
             message: message
         });
@@ -28,14 +28,14 @@ const sendMessage = async () => {
 // Check if bot is ready first
 const checkStatus = async () => {
     try {
-        const response = await axios.get('https://n8n-whatsapp-webhook-production.up.railway.app/');
+        const response = await axios.get('http://146.148.72.208:3000/');
         console.log('Bot status:', response.data);
         
         if (response.data.client_ready && response.data.whatsapp_status === 'authenticated') {
             await sendMessage();
         } else {
             console.log('Bot is not ready yet. Please scan the QR code first.');
-            console.log('QR Code available at: https://n8n-whatsapp-webhook-production.up.railway.app/qr');
+            console.log('QR Code available at: http://146.148.72.208:3000/qr');
             console.log(`Current status: ${response.data.whatsapp_status}, Ready: ${response.data.client_ready}`);
         }
     } catch (error) {
