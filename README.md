@@ -1,6 +1,6 @@
 # WhatsApp Bot with n8n Integration 🚀
 
-A Node.js WhatsApp bot using `whatsapp-web.js` that provides a REST API for sending messages and forwards received messages to n8n webhooks. Features a simple web UI for QR code authentication.
+A Node.js WhatsApp bot using `whatsapp-web.js` that provides a REST API for sending messages and forwards received messages to n8n webhooks. Features a simple web UI for QR code authentication. **Optimized for GitHub Codespaces development!**
 
 ## ✨ Features
 
@@ -8,6 +8,7 @@ A Node.js WhatsApp bot using `whatsapp-web.js` that provides a REST API for send
 - **📤 Send Messages**: REST API endpoint for sending WhatsApp messages
 - **📥 Receive Messages**: Automatically forward incoming messages to n8n webhooks
 - **🔄 Session Persistence**: Maintains login session across restarts
+- **☁️ Codespace Ready**: Fully configured for GitHub Codespaces development
 - **🐳 Docker Support**: Easy deployment with Docker and Docker Compose
 - **📊 Status Monitoring**: Health check and status endpoints
 - **🔧 Environment Configuration**: Easy setup with environment variables
@@ -19,50 +20,72 @@ A Node.js WhatsApp bot using `whatsapp-web.js` that provides a REST API for send
 - **QR Code generation** for web-based authentication
 - **Axios** for webhook integration
 - **Docker** for containerization
+- **GitHub Codespaces** for cloud development
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 🌟 GitHub Codespaces (Recommended)
 
-- Node.js 16+ or Docker
-- A phone with WhatsApp installed
+The easiest way to get started is with GitHub Codespaces - everything is pre-configured!
 
-### Local Development
+1. **Open in Codespace**
+   - Click the "Code" button on GitHub
+   - Select "Codespaces" tab
+   - Click "Create codespace on main"
+   - Wait for the environment to setup (this takes ~2-3 minutes)
 
-1. **Clone and Install**
+2. **Start the Bot**
    ```bash
-   git clone <repository-url>
+   npm start
+   ```
+   
+3. **Configure Environment** (Optional)
+   ```bash
+   # Edit .env file to add your n8n webhook URL
+   cp .env.example .env
+   # Edit .env with your settings
+   ```
+
+4. **Authenticate with WhatsApp**
+   - The server will automatically start on port 3000
+   - Codespace will show a popup with the forwarded URL
+   - Open the forwarded URL and add `/qr` to authenticate
+   - Scan the QR code with WhatsApp on your phone
+
+### 💻 Local Development
+
+For local development outside of Codespaces:
+
+1. **Prerequisites**
+   - Node.js 18+
+   - Linux/macOS (Windows requires WSL)
+   - A phone with WhatsApp installed
+
+2. **Clone and Setup**
+   ```bash
+   git clone https://github.com/Unknown-Geek/n8n-whatsapp-webhook.git
    cd n8n-whatsapp-webhook
    npm run setup
    ```
-   
-   This will:
-   - Install all system dependencies from `packages.txt`
-   - Download and install Chrome locally
-   - Install Node.js dependencies
 
-2. **Configure Environment**
+3. **Configure Environment**
    ```bash
    cp .env.example .env
-   ```
-   
-   Edit `.env` file:
-   ```env
-   PORT=3000
-   N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/whatsapp
+   # Edit .env with your n8n webhook URL
    ```
 
-3. **Start the Server**
+4. **Start the Server**
    ```bash
    npm start
    ```
 
-4. **Authenticate with WhatsApp**
-   - Open http://localhost:3000/qr in your browser
-   - Scan the QR code with WhatsApp on your phone
-   - Go to WhatsApp Settings → Linked Devices → Link a Device
+5. **Authenticate**
+   - Open http://localhost:3000/qr
+   - Scan QR code with WhatsApp
 
-### Docker Deployment
+### 🐳 Docker Deployment
+
+For production deployments:
 
 1. **Using Docker Compose (Recommended)**
    ```bash
@@ -150,10 +173,20 @@ When someone sends a message to your WhatsApp, the bot forwards it to your n8n w
 
 ### Setting up the Webhook in n8n
 
-1. Create a new workflow in n8n
-2. Add a **Webhook** trigger node
-3. Set the webhook URL in your `.env` file
-4. Configure your workflow to process incoming WhatsApp messages
+1. **Create a new workflow in n8n**
+2. **Add a Webhook trigger node**
+3. **Configure the webhook URL**:
+   
+   **For GitHub Codespaces:**
+   - Use your Codespace's forwarded URL: `https://your-codespace-url.github.dev/webhook/test`
+   - Or set up n8n to send webhooks to your bot: Configure your n8n webhook to receive from the Codespace URL
+
+   **For local development:**
+   - Use ngrok or similar: `https://abc123.ngrok.io`
+   - Or use your domain if deployed
+
+4. **Update your .env file** with the webhook URL
+5. **Test the integration** using the `/send` API endpoint
 
 ### Example n8n Workflow
 
@@ -172,7 +205,22 @@ When someone sends a message to your WhatsApp, the bot forwards it to your n8n w
       "name": "Process Message",
       "type": "n8n-nodes-base.function",
       "parameters": {
-        "functionCode": "// Process incoming WhatsApp message\nconst message = items[0].json;\n\nreturn {\n  sender: message.from,\n  text: message.body,\n  timestamp: new Date(message.timestamp * 1000)\n};"
+        "functionCode": "// Process incoming WhatsApp message\nconst message = items[0].json;\n\nreturn {\n  sender: message.from,\n  text: message.body,\n  timestamp: new Date(message.timestamp * 1000),\n  isGroup: message.isGroup\n};"
+      }
+    },
+    {
+      "name": "Send Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.CODESPACE_URL || 'http://localhost:3000' }}/send",
+        "jsonParameters": true,
+        "options": {
+          "body": {
+            "to": "{{ $json.sender }}",
+            "message": "Thanks for your message: {{ $json.text }}"
+          }
+        }
       }
     }
   ]
@@ -191,30 +239,49 @@ When someone sends a message to your WhatsApp, the bot forwards it to your n8n w
 ## 📁 Project Structure
 
 ```
-├── server.js                    # Main application file
-├── package.json                 # Node.js dependencies
-├── .env.example                 # Environment variables template
-├── .env                         # Environment variables (local)
-├── packages.txt                 # Ubuntu system packages (for local dev)
-├── packages-docker.txt          # Debian system packages (for Docker)
-├── Dockerfile                   # Docker configuration
-├── docker-compose.yml           # Docker Compose setup
-├── .dockerignore               # Docker ignore file
-├── test-api.sh                 # API testing script
-├── install-packages-helper.sh  # Package installation helper
-└── session/                    # WhatsApp session data (auto-created)
+├── .devcontainer/               # GitHub Codespaces configuration
+│   ├── devcontainer.json       # Dev container settings
+│   └── setup.sh                # Codespace setup script
+├── server.js                   # Main application file
+├── package.json                # Node.js dependencies & scripts
+├── .env.example                # Environment variables template
+├── .env                        # Environment variables (create from template)
+├── packages.txt                # System packages for local development
+├── Dockerfile                  # Docker configuration
+├── docker-compose.yml          # Docker Compose setup
+├── .dockerignore              # Docker ignore file
+├── install-chrome.sh           # Chrome installation script (local dev)
+├── send-test-message.js        # Testing utility
+└── whatsapp-session/          # WhatsApp session data (auto-created)
 ```
 
 ## 🔒 Security Considerations
 
-- **Session Storage**: WhatsApp session data is stored locally in the `session/` directory
+- **Session Storage**: WhatsApp session data is stored in `whatsapp-session/` directory
 - **Environment Variables**: Never commit your `.env` file with real credentials
 - **Network Security**: Use HTTPS webhooks in production
-- **Docker Security**: The Docker container runs as a non-root user
+- **Codespace Security**: Session data persists in Codespace storage
+- **Docker Security**: The Docker container runs with proper user permissions
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### GitHub Codespaces Issues
+
+1. **Port not forwarding automatically**
+   - Go to Ports tab in VS Code
+   - Make sure port 3000 is forwarded
+   - Set visibility to "Public" for external access
+
+2. **Codespace setup fails**
+   - Wait for the postCreateCommand to complete
+   - Check terminal for setup script output
+   - Manually run: `bash .devcontainer/setup.sh`
+
+3. **Chrome/Puppeteer issues in Codespace**
+   - The setup automatically handles Chrome installation
+   - If issues persist, restart the Codespace
+
+### Common Issues (All Environments)
 
 1. **QR Code not showing**
    - Wait a few seconds for the client to initialize
@@ -222,76 +289,79 @@ When someone sends a message to your WhatsApp, the bot forwards it to your n8n w
    - Refresh the `/qr` page
 
 2. **Authentication fails**
-   - Clear the `session/` directory and restart
+   - Clear the `whatsapp-session/` directory and restart
    - Ensure your phone has a stable internet connection
    - Try scanning the QR code again
 
 3. **Messages not being forwarded**
-   - Check that `N8N_WEBHOOK_URL` is correctly set
-   - Verify n8n webhook is accessible
+   - Check that `N8N_WEBHOOK_URL` is correctly set in `.env`
+   - Verify n8n webhook is accessible from your environment
    - Check server logs for error messages
 
-4. **Docker deployment issues**
-   - Ensure Docker has enough resources allocated
-   - Check that port 3000 is available
-   - Verify volume mounts for session persistence
+4. **Local development setup issues**
+   - Ensure you have Node.js 18+ installed
+   - Run `npm run setup` to install all dependencies
+   - Check that Chrome is properly installed
 
 ### Debugging
 
-Enable verbose logging by checking the console output. The application logs all important events:
+The application logs all important events to the console:
 
 - Authentication status changes
 - Incoming and outgoing messages
 - Webhook forwarding attempts
 - Error conditions
 
+For Codespaces, check the integrated terminal for logs.
+
 ## 🔄 Development
+
+### GitHub Codespaces Development (Recommended)
+
+The project is fully configured for GitHub Codespaces with:
+
+- **Automatic setup**: Chrome, dependencies, and environment auto-configured
+- **Port forwarding**: Port 3000 automatically forwarded and labeled
+- **VS Code extensions**: Pre-installed helpful extensions
+- **Development server**: Ready to run with `npm start`
+
+**Codespace Development Workflow:**
+```bash
+# Codespace is already set up, just start developing!
+npm start                    # Start the development server
+npm run create-env          # Create .env from template if needed
+
+# The server will be available at the forwarded URL
+# Add /qr to the URL to authenticate with WhatsApp
+```
 
 ### Local Development Setup
 
+If you prefer local development:
+
 ```bash
-# Full setup (recommended)
+# Full setup (installs Chrome and all dependencies)
 npm run setup
 
-# Or individual steps:
-npm run install-packages  # Install system dependencies
-npm run install-chrome    # Download and install Chrome locally
-npm install               # Install Node.js dependencies
+# Or Codespace-compatible setup (skips Chrome download)
+npm run setup-codespace
 
 # Start in development mode
-npm run dev
+npm start
 
-# View logs
-tail -f logs/app.log  # If logging to file
-```
-
-### Setup Troubleshooting
-
-**Permission Issues:**
-```bash
-# If you get permission errors during setup:
-sudo npm run install-packages
+# Manual Chrome installation (if needed)
 ./install-chrome.sh
-npm install
 ```
 
-**Chrome Issues:**
-```bash
-# If Chrome fails to start, check if all dependencies are installed:
-npm run install-packages
+### Testing Webhooks
 
-# Verify Chrome installation:
-ls -la ./chrome/
-./chrome/chrome --version
+#### Using Codespace Port Forwarding
+Your n8n webhook URL can be the forwarded Codespace URL:
+```
+https://your-codespace-url.github.dev/webhook/whatsapp
 ```
 
-**System Dependencies:**
-All required packages are listed in `packages.txt` and installed automatically during setup.
-
-### Testing Webhooks Locally
-
-Use ngrok or similar tools to expose your local server:
-
+#### Using ngrok (Local Development)
 ```bash
 # Install ngrok
 npm install -g ngrok
@@ -301,6 +371,17 @@ ngrok http 3000
 
 # Use the ngrok URL as your N8N_WEBHOOK_URL
 ```
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `PORT` | Server port | `3000` | No |
+| `N8N_WEBHOOK_URL` | n8n webhook endpoint | - | No* |
+| `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | Skip Puppeteer Chrome download | `true` | Codespace only |
+| `GOOGLE_CHROME_BIN` | Chrome executable path | `/usr/bin/google-chrome-stable` | Codespace only |
+
+*Required if you want to forward incoming messages to n8n
 
 ## 📝 License
 
@@ -326,3 +407,5 @@ If you encounter any issues or have questions:
 ---
 
 **⚡ Note**: This bot uses WhatsApp Web (not the Business API), so it requires an active WhatsApp account and regular re-authentication via QR code scanning. Perfect for personal automation, prototypes, and hackathons!
+
+**☁️ Codespace Optimized**: This project is fully configured for GitHub Codespaces with automatic setup, port forwarding, and Chrome installation. Simply open in Codespace and run `npm start`!

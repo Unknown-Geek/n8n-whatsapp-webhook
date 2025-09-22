@@ -4,11 +4,13 @@
   "description": "WhatsApp Bot with whatsapp-web.js that integrates with n8n webhooks",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "setup": "npm run install-packages && npm run install-chrome && npm install",
+    "start": "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable node server.js",
+    "dev": "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable node server.js",
+    "setup": "npm run install-packages && npm run install-chrome && PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm install",
+    "setup-codespace": "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm install && npm run create-env",
     "install-packages": "sudo apt-get update && sudo apt-get install -y $(cat packages.txt)",
     "install-chrome": "./install-chrome.sh",
+    "create-env": "test -f .env || cp .env.example .env",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
