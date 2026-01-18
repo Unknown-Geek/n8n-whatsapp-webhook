@@ -14,6 +14,7 @@ COPY packages.txt ./
 RUN apt-get update && \
     (cat packages.txt | xargs apt-get install -y --no-install-recommends || true) && \
     apt-get install -y --no-install-recommends \
+        chromium \
         libatk1.0-0 \
         libatk-bridge2.0-0 \
         libcups2 \
@@ -38,31 +39,22 @@ WORKDIR /usr/src/app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Set environment variable to skip Puppeteer download (we'll use system Chromium)
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+# Install dependencies (use npm install to update lock file)
+RUN npm install --omit=dev
 
 # Copy app source
 COPY . .
 
-# Install Chrome locally in the container (as root before user switch)
-RUN chmod +x ./install-chrome.sh && ./install-chrome.sh
-
 # Create directory for session storage with proper ownership and permissions
 RUN mkdir -p whatsapp-session && chmod -R 777 whatsapp-session
 
-# For now, run as root to avoid permission issues
-# TODO: Fix non-root user setup later
-# RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
-#     && mkdir -p /home/pptruser/Downloads /home/pptruser/.local/share \
-#     && chown -R pptruser:pptruser /home/pptruser \
-#     && chown -R pptruser:pptruser /usr/src/app
-
-# USER pptruser
-
-# Set environment variables for Chrome
+# Set environment variables for Chrome/Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV GOOGLE_CHROME_BIN=/usr/bin/google-chrome-stable
-ENV CHROME_PATH=/usr/bin/google-chrome-stable
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV CHROME_PATH=/usr/bin/chromium
 
 # Expose port
 EXPOSE 3000

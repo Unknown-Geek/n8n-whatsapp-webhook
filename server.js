@@ -433,7 +433,9 @@ app.post('/send', async (req, res) => {
         // Add timeout for message sending
         const sendMessageWithTimeout = async () => {
             return Promise.race([
-                client.sendMessage(phoneNumber, message),
+                // Pass sendSeen: false to workaround WhatsApp Web API change (markedUnread error)
+                // See: https://github.com/pedroslopez/whatsapp-web.js/issues/5718
+                client.sendMessage(phoneNumber, message, { sendSeen: false }),
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Message send timeout after 30 seconds')), 30000)
                 )
@@ -470,6 +472,127 @@ app.get('/status', (req, res) => {
         n8n_webhook_configured: !!N8N_WEBHOOK_URL,
         timestamp: new Date().toISOString()
     });
+});
+
+// Get all chats (including groups and channels)
+app.get('/chats', async (req, res) => {
+    try {
+        if (!isClientReady) {
+            return res.status(503).json({
+                error: 'WhatsApp client is not ready',
+                status: authenticationStatus
+            });
+        }
+
+        const chats = await client.getChats();
+        
+        const chatList = chats.map(chat => ({
+            id: chat.id._serialized,
+            name: chat.name,
+            isGroup: chat.isGroup,
+            timestamp: chat.timestamp,
+            unreadCount: chat.unreadCount
+        }));
+
+        res.json({
+            success: true,
+            count: chatList.length,
+            chats: chatList
+        });
+
+    } catch (error) {
+        log(`Error fetching chats: ${error.message}`, 'error');
+        res.status(500).json({
+            error: 'Failed to fetch chats',
+            details: error.message
+        });
+    }
+});
+
+// Get all groups
+app.get('/groups', async (req, res) => {
+    try {
+        if (!isClientReady) {
+            return res.status(503).json({
+                error: 'WhatsApp client is not ready',
+                status: authenticationStatus
+            });
+        }
+
+        const chats = await client.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+        
+        const groupList = groups.map(group => ({
+            id: group.id._serialized,
+            name: group.name,
+            timestamp: group.timestamp,
+            participantsCount: group.participants ? group.participants.length : 0
+        }));
+
+        res.json({
+            success: true,
+            count: groupList.length,
+            groups: groupList
+        });
+
+    } catch (error) {
+        log(`Error fetching groups: ${error.message}`, 'error');
+        res.status(500).json({
+            error: 'Failed to fetch groups',
+            details: error.message
+        });
+    }
+});
+
+// Send message to channel/newsletter (if you're an admin)
+app.post('/send-to-channel', async (req, res) => {
+    try {
+        const { channelId, message } = req.body;
+
+        if (!channelId || !message) {
+            return res.status(400).json({
+                error: 'Missing required fields: channelId, message',
+                example: {
+                    channelId: '1234567890@newsletter',
+                    message: 'Your message here'
+                }
+            });
+        }
+
+        if (!isClientReady) {
+            return res.status(503).json({
+                error: 'WhatsApp client is not ready',
+                status: authenticationStatus
+            });
+        }
+
+        // Ensure proper channel ID format
+        let formattedChannelId = channelId;
+        if (!channelId.includes('@newsletter')) {
+            formattedChannelId = channelId + '@newsletter';
+        }
+
+        log(`Sending message to channel ${formattedChannelId}: ${message}`);
+        
+        const result = await client.sendMessage(formattedChannelId, message);
+        
+        log(`Message sent to channel successfully. Result ID: ${result.id || 'N/A'}`);
+        res.json({
+            success: true,
+            message: 'Message sent to channel successfully',
+            channelId: formattedChannelId,
+            result: { id: result.id, ack: result.ack },
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        log(`Error sending message to channel: ${error.message}`, 'error');
+        res.status(500).json({
+            error: 'Failed to send message to channel',
+            details: error.message,
+            note: 'Make sure you are an admin of the channel and the channel ID is correct'
+        });
+    }
 });
 
 // Webhook endpoint for testing (optional)
