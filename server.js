@@ -135,11 +135,11 @@ const initializeWhatsAppClient = () => {
             puppeteer: puppeteerConfig
         });
 
-        // Add initialization timeout
+        // Add initialization timeout (increased to 180 seconds for slower connections)
         const initTimeout = setTimeout(() => {
-            log('ERROR: WhatsApp client initialization timed out after 60 seconds');
+            log('ERROR: WhatsApp client initialization timed out after 180 seconds');
             authenticationStatus = 'timeout';
-        }, 60000);
+        }, 180000);
 
         // QR Code generation
         client.on('qr', (qr) => {
@@ -159,6 +159,7 @@ const initializeWhatsAppClient = () => {
 
     // Client ready
     client.on('ready', () => {
+        clearTimeout(initTimeout);
         log('WhatsApp Web client is ready!');
         isClientReady = true;
         authenticationStatus = 'authenticated';
@@ -167,7 +168,7 @@ const initializeWhatsAppClient = () => {
     // Authentication success
     client.on('authenticated', () => {
         log('WhatsApp authentication successful');
-        authenticationStatus = 'authenticated';
+        // Don't set authenticationStatus here - wait for ready event
     });
 
     // Authentication failure

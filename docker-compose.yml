@@ -4,7 +4,7 @@ services:
   whatsapp-bot:
     build: .
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - PORT=3000
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
