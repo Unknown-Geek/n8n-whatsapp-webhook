@@ -91,6 +91,7 @@ const initializeWhatsAppClient = () => {
             '--disable-component-update',
             '--disable-popup-blocking',
             '--window-size=1280,800',
+            '--js-flags=--max-old-space-size=512',
             '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
