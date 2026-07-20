@@ -70,6 +70,7 @@ const initializeWhatsAppClient = () => {
     const puppeteerConfig = {
         headless: 'new', // Use new headless mode for Chrome 112+
         timeout: 180000, // 3 minutes timeout for Cloud Run
+        bypassCSP: true,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -127,7 +128,7 @@ const initializeWhatsAppClient = () => {
             }),
             webVersionCache: {
                 type: 'remote',
-                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018928045-alpha.html',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
             },
             puppeteer: puppeteerConfig
         });
@@ -399,6 +400,12 @@ app.get('/reset-session', async (req, res) => {
         if (fs.existsSync(sessionPath)) {
             fs.rmSync(sessionPath, { recursive: true, force: true });
             log('Deleted ./whatsapp-session folder');
+        }
+
+        const cachePath = path.join(__dirname, '.wwebjs_cache');
+        if (fs.existsSync(cachePath)) {
+            fs.rmSync(cachePath, { recursive: true, force: true });
+            log('Deleted .wwebjs_cache folder');
         }
 
         setTimeout(() => {
