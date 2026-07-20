@@ -78,41 +78,20 @@ const initializeWhatsAppClient = () => {
             '--no-first-run',
             '--no-zygote',
             '--disable-gpu',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-features=TranslateUI,VizDisplayCompositor,site-per-process,Translate,BackForwardCache,AutomationControlled',
-            '--disable-ipc-flooding-protection',
             '--disable-software-rasterizer',
-            '--disable-web-security',
             '--no-default-browser-check',
             '--no-pings',
             '--ignore-certificate-errors',
             '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list',
-            '--ignore-ssl-errors-list',
-            '--memory-pressure-off',
-            '--max_old_space_size=2048',
             '--disable-extensions',
             '--disable-plugins',
             '--disable-default-apps',
-            '--disable-background-networking',
-            '--disable-sync',
             '--metrics-recording-only',
             '--no-crash-upload',
             '--disable-component-update',
             '--disable-popup-blocking',
-            '--disable-translate',
-            '--disable-client-side-phishing-detection',
-            '--disable-hang-monitor',
-            '--disable-prompt-on-repost',
-            '--disable-infobars',
             '--window-size=1280,800',
-            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
-            '--no-process-per-tab',
-            '--disable-process-per-site',
-            '--disable-site-isolation-trials',
-            '--user-data-dir=/tmp/chrome-profile-' + Date.now()
+            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
         handleSIGTERM: false,
@@ -132,13 +111,19 @@ const initializeWhatsAppClient = () => {
             authStrategy: new LocalAuth({
                 dataPath: './whatsapp-session'
             }),
+            webVersionCache: {
+                type: 'remote',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014133500-alpha.html'
+            },
             puppeteer: puppeteerConfig
         });
 
-        // Add initialization timeout (increased to 180 seconds for slower connections)
+        // Add initialization timeout (180 seconds)
         const initTimeout = setTimeout(() => {
-            log('ERROR: WhatsApp client initialization timed out after 180 seconds');
-            authenticationStatus = 'timeout';
+            log('ERROR: WhatsApp client initialization timed out after 180 seconds', 'error');
+            if (authenticationStatus !== 'authenticated') {
+                authenticationStatus = 'timeout';
+            }
         }, 180000);
 
         // QR Code generation
@@ -147,65 +132,70 @@ const initializeWhatsAppClient = () => {
             log('✅ QR Code received, generating QR code string...');
             qrCodeString = qr;
             authenticationStatus = 'qr_ready';
-        QRCode.toString(qr, { type: 'terminal' }, (err, url) => {
-            if (!err) {
-                console.log('\n=== WhatsApp QR Code ===');
-                console.log(url);
-                console.log('========================\n');
-                log('QR Code displayed in terminal. Also available at http://localhost:' + PORT + '/qr');
-            }
+            QRCode.toString(qr, { type: 'terminal' }, (err, url) => {
+                if (!err) {
+                    console.log('\n=== WhatsApp QR Code ===');
+                    console.log(url);
+                    console.log('========================\n');
+                    log('QR Code displayed in terminal. Also available at http://localhost:' + PORT + '/qr');
+                }
+            });
         });
-    });
 
-    // Client ready
-    client.on('ready', () => {
-        clearTimeout(initTimeout);
-        log('WhatsApp Web client is ready!');
-        isClientReady = true;
-        authenticationStatus = 'authenticated';
-    });
+        // Client ready
+        client.on('ready', () => {
+            clearTimeout(initTimeout);
+            log('🎉 WhatsApp Web client is ready!');
+            isClientReady = true;
+            authenticationStatus = 'authenticated';
+            qrCodeString = '';
+        });
 
-    // Authentication success
-    client.on('authenticated', () => {
-        log('WhatsApp authentication successful');
-        // Don't set authenticationStatus here - wait for ready event
-    });
+        // Authentication success
+        client.on('authenticated', () => {
+            log('🔑 WhatsApp authentication successful, starting web session sync...');
+            authenticationStatus = 'authenticated_loading';
+            qrCodeString = '';
+        });
 
-    // Authentication failure
-    client.on('auth_failure', (msg) => {
-        log(`Authentication failed: ${msg}`, 'error');
-        authenticationStatus = 'auth_failed';
-    });
+        // Loading screen event
+        client.on('loading_screen', (percent, message) => {
+            log(`⏳ Loading WhatsApp Web... ${percent}% - ${message}`, 'info');
+            authenticationStatus = `loading (${percent}% - ${message})`;
+        });
 
-    // Client disconnected
-    client.on('disconnected', (reason) => {
-        log(`Client disconnected: ${reason}`, 'warn');
-        isClientReady = false;
-        authenticationStatus = 'disconnected';
-    });
+        // Authentication failure
+        client.on('auth_failure', (msg) => {
+            log(`Authentication failed: ${msg}`, 'error');
+            authenticationStatus = 'auth_failed';
+        });
 
-    // Loading screen event
-    client.on('loading_screen', (percent, message) => {
-        log(`Loading... ${percent}% - ${message}`, 'info');
-    });
+        // Client disconnected
+        client.on('disconnected', (reason) => {
+            log(`Client disconnected: ${reason}`, 'warn');
+            isClientReady = false;
+            authenticationStatus = 'disconnected';
+            qrCodeString = '';
+        });
 
-    // Error handling
-    client.on('error', (error) => {
-        log(`WhatsApp client error: ${error.message}`, 'error');
-        console.error('Full error:', error);
-        authenticationStatus = 'error';
-    });
+        // Error handling
+        client.on('error', (error) => {
+            log(`WhatsApp client error: ${error.message}`, 'error');
+            console.error('Full error:', error);
+            authenticationStatus = 'error';
+        });
 
-    // Initialize client with error handling
-    client.initialize().catch(error => {
-        log(`Failed to initialize WhatsApp client: ${error.message}`, 'error');
-        console.error('Initialization error:', error);
-        authenticationStatus = 'init_failed';
-    });
+        // Initialize client with error handling
+        client.initialize().catch(error => {
+            log(`Failed to initialize WhatsApp client: ${error.message}`, 'error');
+            console.error('Initialization error:', error);
+            authenticationStatus = 'init_failed';
+        });
     } catch (error) {
         log(`ERROR: Failed to create WhatsApp client: ${error.message}`, 'error');
         authenticationStatus = 'error';
     }
+
     client.on('message', async (message) => {
         try {
             log(`Received message from ${message.from}: ${message.body}`);
@@ -263,6 +253,7 @@ app.get('/qr', (req, res) => {
                         .container { max-width: 500px; margin: 0 auto; padding: 20px; }
                         .status { color: green; font-size: 18px; margin-bottom: 20px; }
                         .info { color: #666; }
+                        .btn { display: inline-block; padding: 10px 15px; background: #dc3545; color: white; text-decoration: none; border-radius: 5px; margin-top: 15px; }
                     </style>
                 </head>
                 <body>
@@ -273,6 +264,7 @@ app.get('/qr', (req, res) => {
                             <p>Your WhatsApp bot is connected and ready to use!</p>
                             <p><strong>Send messages:</strong> POST /send</p>
                             <p><strong>Status:</strong> GET /</p>
+                            <a href="/reset" class="btn" onclick="return confirm('Are you sure you want to disconnect and reset session?')">Reset Session / Disconnect</a>
                         </div>
                     </div>
                 </body>
@@ -311,6 +303,7 @@ app.get('/qr', (req, res) => {
                             .qr-code { margin: 20px 0; }
                             .instructions { color: #666; margin-top: 20px; }
                             .status { color: orange; font-size: 16px; margin-bottom: 10px; }
+                            .btn-reset { display: inline-block; padding: 8px 12px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px; font-size: 14px; }
                         </style>
                     </head>
                     <body>
@@ -329,6 +322,7 @@ app.get('/qr', (req, res) => {
                                     <li>Scan this QR code</li>
                                 </ol>
                                 <p><small>Page refreshes every 5 seconds</small></p>
+                                <p><a href="/reset" class="btn-reset">Reset Session & Get New QR</a></p>
                             </div>
                         </div>
                     </body>
@@ -337,30 +331,38 @@ app.get('/qr', (req, res) => {
         });
     } else {
         // Show current status with more details
-        const statusMessage = {
-            'initializing': '🔄 Initializing WhatsApp client...',
-            'init_failed': '❌ Initialization failed - check logs',
-            'error': '❌ Client error occurred - check logs',
-            'loading': '⏳ Loading WhatsApp Web...'
-        }[authenticationStatus] || '🔄 Starting up...';
+        let statusMessage = '🔄 Starting up...';
+        if (authenticationStatus.startsWith('loading')) {
+            statusMessage = `⏳ Syncing WhatsApp session: ${authenticationStatus}`;
+        } else if (authenticationStatus === 'authenticated_loading') {
+            statusMessage = '🔑 QR Scanned! Syncing WhatsApp Web data...';
+        } else {
+            statusMessage = {
+                'initializing': '🔄 Initializing WhatsApp client...',
+                'init_failed': '❌ Initialization failed - check logs',
+                'error': '❌ Client error occurred - check logs',
+                'timeout': '⚠️ Initialization timed out'
+            }[authenticationStatus] || `🔄 Status: ${authenticationStatus}`;
+        }
 
         res.send(`
             <html>
                 <head>
                     <title>WhatsApp Bot - ${authenticationStatus}</title>
-                    <meta http-equiv="refresh" content="5">
+                    <meta http-equiv="refresh" content="3">
                     <style>
                         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
                         .container { max-width: 500px; margin: 0 auto; padding: 20px; }
-                        .status { color: ${authenticationStatus.includes('failed') || authenticationStatus.includes('error') ? 'red' : 'blue'}; font-size: 18px; }
-                        .debug { background: #f5f5f5; padding: 10px; margin: 20px 0; border-radius: 5px; font-family: monospace; }
+                        .status { color: ${authenticationStatus.includes('failed') || authenticationStatus.includes('error') ? 'red' : 'blue'}; font-size: 18px; margin-bottom: 15px; }
+                        .debug { background: #f5f5f5; padding: 10px; margin: 20px 0; border-radius: 5px; font-family: monospace; text-align: left; }
+                        .btn-reset { display: inline-block; padding: 8px 12px; background: #dc3545; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px; text-decoration: none; }
                     </style>
                 </head>
                 <body>
                     <div class="container">
                         <h1>WhatsApp Bot</h1>
                         <div class="status">${statusMessage}</div>
-                        <p>Please wait while the WhatsApp client starts up.</p>
+                        <p>Please wait while the WhatsApp client completes sync.</p>
                         <div class="debug">
                             <strong>Debug Info:</strong><br>
                             Status: ${authenticationStatus}<br>
@@ -368,12 +370,67 @@ app.get('/qr', (req, res) => {
                             Has QR: ${!!qrCodeString}<br>
                             Timestamp: ${new Date().toISOString()}
                         </div>
-                        <p><small>Page will refresh automatically every 5 seconds</small></p>
+                        <p><a href="/reset" class="btn-reset">Reset Session & Clear Cache</a></p>
+                        <p><small>Page will refresh automatically every 3 seconds</small></p>
                     </div>
                 </body>
             </html>
         `);
     }
+});
+
+// Reset session endpoint
+app.get('/reset', async (req, res) => {
+    log('🔄 Session reset requested via /reset endpoint...');
+    isClientReady = false;
+    authenticationStatus = 'resetting';
+    qrCodeString = '';
+    
+    if (client) {
+        try {
+            await client.destroy();
+        } catch (err) {
+            log(`Warning when destroying client: ${err.message}`, 'warn');
+        }
+        client = null;
+    }
+    
+    const sessionPath = path.join(__dirname, 'whatsapp-session');
+    if (fs.existsSync(sessionPath)) {
+        try {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            log('Cleared whatsapp-session folder.');
+        } catch (err) {
+            log(`Error removing whatsapp-session folder: ${err.message}`, 'error');
+        }
+    }
+    
+    // Reinitialize client
+    setTimeout(() => {
+        initializeWhatsAppClient();
+    }, 1000);
+
+    res.send(`
+        <html>
+            <head>
+                <title>WhatsApp Bot - Resetting Session</title>
+                <meta http-equiv="refresh" content="3;url=/qr">
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+                    .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+                    .status { color: green; font-size: 18px; margin-bottom: 15px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Session Resetting</h1>
+                    <div class="status">✅ WhatsApp session cleared successfully!</div>
+                    <p>Re-initializing WhatsApp client... Redirecting to QR code in 3 seconds.</p>
+                    <p><a href="/qr">Click here if not redirected</a></p>
+                </div>
+            </body>
+        </html>
+    `);
 });
 
 // Send message endpoint
