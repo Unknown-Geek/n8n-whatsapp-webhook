@@ -68,8 +68,8 @@ const initializeWhatsAppClient = () => {
     const chromePath = getChromePath();
     
     const puppeteerConfig = {
-        headless: 'new', // Use new headless mode for Chrome 112+
-        timeout: 180000, // 3 minutes timeout for Cloud Run
+        headless: 'new',
+        timeout: 180000,
         bypassCSP: true,
         args: [
             '--no-sandbox',
@@ -83,15 +83,10 @@ const initializeWhatsAppClient = () => {
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
             '--disable-software-rasterizer',
-            '--disable-web-security',
             '--no-default-browser-check',
             '--no-pings',
             '--ignore-certificate-errors',
             '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list',
-            '--ignore-ssl-errors-list',
-            '--memory-pressure-off',
-            '--max_old_space_size=2048',
             '--disable-extensions',
             '--disable-plugins',
             '--disable-default-apps',
@@ -100,12 +95,8 @@ const initializeWhatsAppClient = () => {
             '--no-crash-upload',
             '--disable-component-update',
             '--disable-popup-blocking',
-            '--disable-translate',
-            '--disable-client-side-phishing-detection',
-            '--disable-hang-monitor',
-            '--disable-prompt-on-repost',
-            '--disable-infobars',
             '--window-size=1280,800',
+            '--js-flags=--max-old-space-size=512',
             '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
@@ -128,15 +119,16 @@ const initializeWhatsAppClient = () => {
             }),
             webVersionCache: {
                 type: 'remote',
-                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014133500-alpha.html'
             },
             puppeteer: puppeteerConfig
         });
 
-        // Add initialization timeout (increased to 180 seconds for slower connections)
-        let initTimeout = setTimeout(() => {
-            log('ERROR: WhatsApp client initialization timed out after 180 seconds');
-            authenticationStatus = 'timeout';
+        const initTimeout = setTimeout(() => {
+            log('ERROR: WhatsApp client initialization timed out after 180 seconds', 'error');
+            if (authenticationStatus !== 'authenticated') {
+                authenticationStatus = 'timeout';
+            }
         }, 180000);
 
         // QR Code generation
@@ -158,7 +150,7 @@ const initializeWhatsAppClient = () => {
         // Client ready
         client.on('ready', () => {
             clearTimeout(initTimeout);
-            log('WhatsApp Web client is ready!');
+            log('🎉 WhatsApp Web client is ready!');
             isClientReady = true;
             authenticationStatus = 'authenticated';
             qrCodeString = '';
@@ -166,9 +158,15 @@ const initializeWhatsAppClient = () => {
 
         // Authentication success
         client.on('authenticated', () => {
-            log('WhatsApp authentication successful, syncing session and loading chats...');
+            log('🔑 WhatsApp authentication successful, starting web session sync...');
             authenticationStatus = 'authenticating';
             qrCodeString = '';
+        });
+
+        // Loading screen event
+        client.on('loading_screen', (percent, message) => {
+            log(`⏳ Loading WhatsApp Web... ${percent}% - ${message}`, 'info');
+            authenticationStatus = `loading (${percent}% - ${message})`;
         });
 
         // Authentication failure
@@ -182,12 +180,7 @@ const initializeWhatsAppClient = () => {
             log(`Client disconnected: ${reason}`, 'warn');
             isClientReady = false;
             authenticationStatus = 'disconnected';
-        });
-
-        // Loading screen event
-        client.on('loading_screen', (percent, message) => {
-            log(`Loading... ${percent}% - ${message}`, 'info');
-            authenticationStatus = `loading (${percent}%)`;
+            qrCodeString = '';
         });
 
         // Error handling
@@ -195,6 +188,39 @@ const initializeWhatsAppClient = () => {
             log(`WhatsApp client error: ${error.message}`, 'error');
             console.error('Full error:', error);
             authenticationStatus = 'error';
+        });
+
+        // Incoming message handling
+        client.on('message', async (message) => {
+            try {
+                log(`Received message from ${message.from}: ${message.body}`);
+                
+                // Forward to n8n webhook if configured
+                if (N8N_WEBHOOK_URL) {
+                    const webhookPayload = {
+                        from: message.from,
+                        body: message.body,
+                        timestamp: message.timestamp,
+                        id: message.id.id,
+                        hasMedia: message.hasMedia,
+                        type: message.type,
+                        isGroup: message.from.includes('@g.us')
+                    };
+
+                    await axios.post(N8N_WEBHOOK_URL, webhookPayload, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 5000
+                    });
+
+                    log(`Message forwarded to n8n webhook: ${N8N_WEBHOOK_URL}`);
+                } else {
+                    log('No N8N_WEBHOOK_URL configured, message not forwarded', 'warn');
+                }
+            } catch (error) {
+                log(`Error handling incoming message: ${error.message}`, 'error');
+            }
         });
 
         // Initialize client with error handling
@@ -207,37 +233,6 @@ const initializeWhatsAppClient = () => {
         log(`ERROR: Failed to create WhatsApp client: ${error.message}`, 'error');
         authenticationStatus = 'error';
     }
-    client.on('message', async (message) => {
-        try {
-            log(`Received message from ${message.from}: ${message.body}`);
-            
-            // Forward to n8n webhook if configured
-            if (N8N_WEBHOOK_URL) {
-                const webhookPayload = {
-                    from: message.from,
-                    body: message.body,
-                    timestamp: message.timestamp,
-                    id: message.id.id,
-                    hasMedia: message.hasMedia,
-                    type: message.type,
-                    isGroup: message.from.includes('@g.us')
-                };
-
-                await axios.post(N8N_WEBHOOK_URL, webhookPayload, {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 5000
-                });
-
-                log(`Message forwarded to n8n webhook: ${N8N_WEBHOOK_URL}`);
-            } else {
-                log('No N8N_WEBHOOK_URL configured, message not forwarded', 'warn');
-            }
-        } catch (error) {
-            log(`Error handling incoming message: ${error.message}`, 'error');
-        }
-    });
 };
 
 // Routes
@@ -264,6 +259,7 @@ app.get('/qr', (req, res) => {
                         .container { max-width: 500px; margin: 0 auto; padding: 20px; }
                         .status { color: green; font-size: 18px; margin-bottom: 20px; }
                         .info { color: #666; }
+                        .btn { display: inline-block; padding: 10px 15px; background: #dc3545; color: white; text-decoration: none; border-radius: 5px; margin-top: 15px; }
                     </style>
                 </head>
                 <body>
@@ -274,6 +270,7 @@ app.get('/qr', (req, res) => {
                             <p>Your WhatsApp bot is connected and ready to use!</p>
                             <p><strong>Send messages:</strong> POST /send</p>
                             <p><strong>Status:</strong> GET /</p>
+                            <a href="/reset" class="btn" onclick="return confirm('Are you sure you want to disconnect and reset session?')">Reset Session / Disconnect</a>
                         </div>
                     </div>
                 </body>
@@ -312,6 +309,7 @@ app.get('/qr', (req, res) => {
                             .qr-code { margin: 20px 0; }
                             .instructions { color: #666; margin-top: 20px; }
                             .status { color: orange; font-size: 16px; margin-bottom: 10px; }
+                            .btn-reset { display: inline-block; padding: 8px 12px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px; font-size: 14px; }
                         </style>
                     </head>
                     <body>
@@ -330,6 +328,7 @@ app.get('/qr', (req, res) => {
                                     <li>Scan this QR code</li>
                                 </ol>
                                 <p><small>Page refreshes every 5 seconds</small></p>
+                                <p><a href="/reset" class="btn-reset">Reset Session & Get New QR</a></p>
                             </div>
                         </div>
                     </body>
@@ -337,15 +336,15 @@ app.get('/qr', (req, res) => {
             `);
         });
     } else {
-        // Show current status with more details
         const statusMessage = {
             'initializing': '🔄 Initializing WhatsApp client...',
             'init_failed': '❌ Initialization failed - check logs',
             'error': '❌ Client error occurred - check logs',
             'authenticating': '🔑 Authenticated! Loading chats & syncing session...',
             'disconnected': '⚠️ Disconnected. Restarting...',
-            'auth_failed': '❌ Authentication failed. Please reset session and scan again.'
-        }[authenticationStatus] || `⏳ Status: ${authenticationStatus}...`;
+            'auth_failed': '❌ Authentication failed. Please reset session and scan again.',
+            'timeout': '⚠️ Initialization timed out'
+        }[authenticationStatus] || `🔄 Status: ${authenticationStatus}`;
 
         res.send(`
             <html>
@@ -355,9 +354,9 @@ app.get('/qr', (req, res) => {
                     <style>
                         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
                         .container { max-width: 500px; margin: 0 auto; padding: 20px; }
-                        .status { color: ${authenticationStatus.includes('failed') || authenticationStatus.includes('error') ? 'red' : 'blue'}; font-size: 18px; font-weight: bold; }
+                        .status { color: ${authenticationStatus.includes('failed') || authenticationStatus.includes('error') ? 'red' : 'blue'}; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
                         .debug { background: #f5f5f5; padding: 10px; margin: 20px 0; border-radius: 5px; font-family: monospace; text-align: left; }
-                        .btn { display: inline-block; padding: 8px 16px; background: #dc3545; color: white; border-radius: 4px; text-decoration: none; margin-top: 15px; }
+                        .btn-reset { display: inline-block; padding: 8px 16px; background: #dc3545; color: white; border-radius: 4px; text-decoration: none; margin-top: 15px; }
                     </style>
                 </head>
                 <body>
@@ -373,7 +372,7 @@ app.get('/qr', (req, res) => {
                             Timestamp: ${new Date().toISOString()}
                         </div>
                         <p><small>Page refreshes automatically every 3 seconds</small></p>
-                        <a href="/reset-session" class="btn" onclick="return confirm('Are you sure you want to clear session and re-scan QR?')">Reset Session & Re-scan</a>
+                        <a href="/reset" class="btn-reset" onclick="return confirm('Are you sure you want to clear session and re-scan QR?')">Reset Session & Re-scan</a>
                     </div>
                 </body>
             </html>
@@ -381,43 +380,65 @@ app.get('/qr', (req, res) => {
     }
 });
 
-// Endpoint to reset local session if corrupted
-app.get('/reset-session', async (req, res) => {
+// Reset session endpoint
+app.get('/reset', async (req, res) => {
     try {
-        log('Reset session requested');
+        log('🔄 Session reset requested via /reset endpoint...');
+        isClientReady = false;
+        authenticationStatus = 'resetting';
+        qrCodeString = '';
+
         if (client) {
             try {
                 await client.destroy();
             } catch (err) {
-                log(`Error destroying client: ${err.message}`, 'warn');
+                log(`Warning when destroying client: ${err.message}`, 'warn');
             }
+            client = null;
         }
-        isClientReady = false;
-        qrCodeString = '';
-        authenticationStatus = 'resetting';
 
         const sessionPath = path.join(__dirname, 'whatsapp-session');
         if (fs.existsSync(sessionPath)) {
-            fs.rmSync(sessionPath, { recursive: true, force: true });
-            log('Deleted ./whatsapp-session folder');
+            try {
+                fs.rmSync(sessionPath, { recursive: true, force: true });
+                log('Cleared whatsapp-session folder.');
+            } catch (err) {
+                log(`Error removing whatsapp-session folder: ${err.message}`, 'error');
+            }
         }
 
         const cachePath = path.join(__dirname, '.wwebjs_cache');
         if (fs.existsSync(cachePath)) {
-            fs.rmSync(cachePath, { recursive: true, force: true });
-            log('Deleted .wwebjs_cache folder');
+            try {
+                fs.rmSync(cachePath, { recursive: true, force: true });
+                log('Cleared .wwebjs_cache folder.');
+            } catch (err) {
+                log(`Error removing .wwebjs_cache folder: ${err.message}`, 'error');
+            }
         }
 
         setTimeout(() => {
             initializeWhatsAppClient();
-        }, 2000);
+        }, 1000);
 
         res.send(`
             <html>
-                <head><meta http-equiv="refresh" content="3;url=/qr"></head>
-                <body style="font-family: Arial; text-align: center; margin-top: 50px;">
-                    <h2>Session Reset Successfully!</h2>
-                    <p>Redirecting to QR code page in 3 seconds...</p>
+                <head>
+                    <title>WhatsApp Bot - Resetting Session</title>
+                    <meta http-equiv="refresh" content="3;url=/qr">
+                    <style>
+                        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+                        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+                        .status { color: green; font-size: 18px; margin-bottom: 15px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Session Resetting</h1>
+                        <div class="status">✅ WhatsApp session cleared successfully!</div>
+                        <p>Re-initializing WhatsApp client... Redirecting to QR code in 3 seconds.</p>
+                        <p><a href="/qr">Click here if not redirected</a></p>
+                    </div>
                 </body>
             </html>
         `);
@@ -427,14 +448,19 @@ app.get('/reset-session', async (req, res) => {
     }
 });
 
+// Alias for reset-session
+app.get('/reset-session', (req, res) => res.redirect('/reset'));
+
 // Send message endpoint
 app.post('/send', async (req, res) => {
     try {
-        const { to, message } = req.body;
+        const { to, message, text } = req.body;
+        const messageToSend = message || text || req.body.body || req.body.content;
 
-        if (!to || !message) {
+        if (!to || !messageToSend) {
             return res.status(400).json({
-                error: 'Missing required fields: to, message'
+                error: 'Missing required fields: "to" and ("message" or "text")',
+                received: { to, message, text }
             });
         }
 
@@ -446,7 +472,6 @@ app.post('/send', async (req, res) => {
             });
         }
 
-        // Double-check client state
         if (!client) {
             return res.status(503).json({
                 error: 'WhatsApp client is null',
@@ -454,7 +479,6 @@ app.post('/send', async (req, res) => {
             });
         }
 
-        // Check if client is actually connected
         try {
             const state = await client.getState();
             log(`Client state: ${state}`);
@@ -475,34 +499,38 @@ app.post('/send', async (req, res) => {
         }
 
         // Format phone number (ensure it includes country code)
-        let phoneNumber = to.replace(/\D/g, ''); // Remove all non-digits
-        if (!phoneNumber.includes('@c.us')) {
+        let rawTo = String(to).trim();
+        let phoneNumber = rawTo.replace(/\D/g, ''); // Remove all non-digits
+        if (!phoneNumber || phoneNumber.length < 5) {
+            return res.status(400).json({
+                error: 'Invalid phone number provided in "to" field. Must contain country code and digits.',
+                received: to
+            });
+        }
+        if (!phoneNumber.endsWith('@c.us')) {
             phoneNumber = phoneNumber + '@c.us';
         }
 
-        log(`Sending message to ${phoneNumber}: ${message}`);
+        log(`Sending message to ${phoneNumber}: ${messageToSend}`);
         
-        // Add timeout for message sending
         const sendMessageWithTimeout = async () => {
             return Promise.race([
-                // Pass sendSeen: false to workaround WhatsApp Web API change (markedUnread error)
-                // See: https://github.com/pedroslopez/whatsapp-web.js/issues/5718
-                client.sendMessage(phoneNumber, message, { sendSeen: false }),
+                client.sendMessage(phoneNumber, messageToSend, { sendSeen: false }),
                 new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Message send timeout after 30 seconds')), 30000)
                 )
             ]);
         };
         
-        // Send the message and wait for completion
         const result = await sendMessageWithTimeout();
         
-        log(`Message sent successfully to ${phoneNumber}. Result ID: ${result.id || 'N/A'}`);
+        const resultId = result?.id?._serialized || result?.id || 'N/A';
+        log(`Message sent successfully to ${phoneNumber}. Result ID: ${resultId}`);
         res.json({
             success: true,
             message: 'Message sent successfully',
             to: phoneNumber,
-            result: { id: result.id, ack: result.ack },
+            result: result ? { id: result.id, ack: result.ack } : null,
             timestamp: new Date().toISOString()
         });
 
@@ -596,7 +624,7 @@ app.get('/groups', async (req, res) => {
     }
 });
 
-// Send message to channel/newsletter (if you're an admin)
+// Send message to channel/newsletter
 app.post('/send-to-channel', async (req, res) => {
     try {
         const { channelId, message } = req.body;
@@ -618,7 +646,6 @@ app.post('/send-to-channel', async (req, res) => {
             });
         }
 
-        // Ensure proper channel ID format
         let formattedChannelId = channelId;
         if (!channelId.includes('@newsletter')) {
             formattedChannelId = channelId + '@newsletter';
@@ -628,12 +655,13 @@ app.post('/send-to-channel', async (req, res) => {
         
         const result = await client.sendMessage(formattedChannelId, message);
         
-        log(`Message sent to channel successfully. Result ID: ${result.id || 'N/A'}`);
+        const resultId = result?.id?._serialized || result?.id || 'N/A';
+        log(`Message sent to channel successfully. Result ID: ${resultId}`);
         res.json({
             success: true,
             message: 'Message sent to channel successfully',
             channelId: formattedChannelId,
-            result: { id: result.id, ack: result.ack },
+            result: result ? { id: result.id, ack: result.ack } : null,
             timestamp: new Date().toISOString()
         });
 
@@ -647,7 +675,7 @@ app.post('/send-to-channel', async (req, res) => {
     }
 });
 
-// Webhook endpoint for testing (optional)
+// Webhook endpoint for testing
 app.post('/webhook/test', (req, res) => {
     log(`Test webhook received: ${JSON.stringify(req.body, null, 2)}`);
     res.json({ received: true, timestamp: new Date().toISOString() });
@@ -671,7 +699,6 @@ app.listen(PORT, () => {
         log('No n8n webhook URL configured (set N8N_WEBHOOK_URL in .env)', 'warn');
     }
     
-    // Initialize WhatsApp client
     initializeWhatsAppClient();
 });
 
